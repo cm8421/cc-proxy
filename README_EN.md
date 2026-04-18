@@ -48,23 +48,21 @@ mcp_servers:
 ## Project Structure
 
 ```
-src/cc_proxy/
-├── server.py          # FastMCP entry point, registers MCP tools
-├── claude_cli.py      # Claude CLI subprocess management + stream-json parsing
-├── session_store.py   # Discover sessions from ~/.claude/sessions/
-├── project_store.py   # Discover projects from ~/.claude/projects/
-├── jsonl_reader.py    # JSONL conversation history parsing
-├── path_utils.py      # Project path encoding/decoding
-├── models.py          # Pydantic data models
-└── config.py          # Configuration loading
+src/
+├── index.ts           # Entry point, argument parsing, server startup
+├── server.ts          # McpServer, registers MCP tools
+├── claude-cli.ts      # Claude CLI subprocess management + stream-json parsing
+├── session-store.ts   # Discover sessions from ~/.claude/sessions/
+├── project-store.ts   # Discover projects from ~/.claude/projects/
+├── jsonl-reader.ts    # JSONL conversation history parsing
+├── path-utils.ts      # Project path encoding/decoding
+├── types.ts           # TypeScript type definitions
+└── config.ts          # Configuration loading
 ```
 
 ## Requirements
 
-- Python >= 3.11
-- fastmcp >= 2.0
-- pydantic >= 2.0
-- pyyaml >= 6.0
+- Node.js >= 18
 - Claude Code CLI (`claude` command available)
 
 [中文](README.md)

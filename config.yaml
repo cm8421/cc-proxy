@@ -1,0 +1,12 @@
+server:
+  host: "127.0.0.1"
+  port: 8765
+
+claude:
+  cli_path: "claude"
+  home: "~/.claude"
+
+session:
+  max_stream_timeout: 300
+  summary_max_messages: 5
+  summary_max_chars: 200

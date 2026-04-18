@@ -66,3 +66,5 @@ src/cc_proxy/
 - pydantic >= 2.0
 - pyyaml >= 6.0
 - Claude Code CLI (`claude` 命令可用)
+
+[English](README_EN.md)

@@ -24,36 +24,17 @@ MCP Server 桥接 Hermes Agent 与本地 Claude Code CLI 会话。
 | `get_session_status` | 检查会话进程是否存活 |
 | `get_session_summary` | 获取会话工作摘要 |
 
-## 安装
+## 快速安装
 
 ```bash
-cd cc-proxy
-pip install -e .
+curl -fsSL https://raw.githubusercontent.com/cm8421/cc-proxy/main/install.sh | bash
 ```
 
-## 使用
+一行命令完成克隆、依赖安装和 Hermes 配置，重启 Hermes 即可生效。
 
-### stdio 模式（Hermes 集成）
+## 手动配置
 
-```bash
-python -m cc_proxy.server --transport stdio
-```
-
-或使用启动脚本：
-
-```bash
-./run.sh
-```
-
-### HTTP 模式
-
-```bash
-python -m cc_proxy.server --transport streamable-http --host 127.0.0.1 --port 8765
-```
-
-## Hermes 配置
-
-在 `~/.hermes/config.yaml` 中添加：
+如需手动配置，在 `~/.hermes/config.yaml` 中添加：
 
 ```yaml
 mcp_servers:

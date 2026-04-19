@@ -7,6 +7,6 @@ claude:
   home: "~/.claude"
 
 session:
-  max_stream_timeout: 300
+  max_stream_timeout: 1800
   summary_max_messages: 5
   summary_max_chars: 200

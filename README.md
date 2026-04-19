@@ -52,7 +52,7 @@ curl -fsSL https://raw.githubusercontent.com/cm8421/cc-proxy/main/install.sh | b
 如果安装时未检测到凭证，在 cc-proxy 目录下手动创建 `.env`：
 
 ```bash
-cat > /path/to/cc-proxy/.env << 'EOF'
+cat > ~/.cc-proxy/.env << 'EOF'
 ANTHROPIC_BASE_URL=https://your-api-endpoint
 ANTHROPIC_AUTH_TOKEN=your-token
 EOF
@@ -65,7 +65,7 @@ EOF
 ```yaml
 mcp_servers:
   cc-proxy:
-    command: /path/to/cc-proxy/run.sh
+    command: ~/.cc-proxy/run.sh
     args:
       - --transport
       - stdio
@@ -85,7 +85,7 @@ mcp_servers:
 
 ### 故障排查
 
-**"Not logged in" 错误**：`.env` 文件缺失或凭证无效。运行 `cat /path/to/cc-proxy/.env` 检查内容。
+**"Not logged in" 错误**：`.env` 文件缺失或凭证无效。运行 `cat ~/.cc-proxy/.env` 检查内容。
 
 ## 项目结构
 

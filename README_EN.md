@@ -52,7 +52,7 @@ If `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` etc. are set in your shell, the 
 If credentials were not detected during install, create `.env` manually:
 
 ```bash
-cat > /path/to/cc-proxy/.env << 'EOF'
+cat > ~/.cc-proxy/.env << 'EOF'
 ANTHROPIC_BASE_URL=https://your-api-endpoint
 ANTHROPIC_AUTH_TOKEN=your-token
 EOF
@@ -65,7 +65,7 @@ Alternatively, pass credentials via the `env` field in Hermes config (no `.env` 
 ```yaml
 mcp_servers:
   cc-proxy:
-    command: /path/to/cc-proxy/run.sh
+    command: ~/.cc-proxy/run.sh
     args:
       - --transport
       - stdio
@@ -85,7 +85,7 @@ mcp_servers:
 
 ### Troubleshooting
 
-**"Not logged in" error**: `.env` file is missing or credentials are invalid. Check with `cat /path/to/cc-proxy/.env`.
+**"Not logged in" error**: `.env` file is missing or credentials are invalid. Check with `cat ~/.cc-proxy/.env`.
 
 ## Project Structure
 

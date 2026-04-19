@@ -1,10 +1,28 @@
 # cc-proxy
 
-MCP Server 桥接外部 Agent 与本地 Claude Code CLI 会话。
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Node.js >=18](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](package.json)
+
+MCP Server 桥接外部 Agent 与本地 Claude Code CLI 会话——用手机远程控制 Claude Code 编程。
 
 ```
-手机 IM → Agent (MCP Client) → cc-proxy (MCP Server) → Claude CLI → Claude Code Session
+┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
+│  手机 IM  │ ──▶ │  Hermes  │ ──▶ │ cc-proxy │ ──▶ │Claude CLI│ ──▶ │ Session  │
+│ (微信/钉钉)│     │(MCP 客户端)│     │(MCP 服务端)│     │  (子进程) │     │(活跃会话) │
+└──────────┘     └──────────┘     └──────────┘     └──────────┘     └──────────┘
 ```
+
+## Quick Start
+
+```bash
+# 1. 一行安装
+curl -fsSL https://raw.githubusercontent.com/cm8421/cc-proxy/main/install.sh | bash
+
+# 2. 重启 Hermes
+# 3. 在 Hermes 中使用 cc_list_projects 发现项目，cc_send_to_session 发送指令
+```
+
+前提：已安装 [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) 和 [Hermes](https://github.com/nicepkg/hermes)。
 
 ## 功能
 

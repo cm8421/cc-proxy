@@ -1,10 +1,28 @@
 # cc-proxy
 
-An MCP Server that bridges external agents with local Claude Code CLI sessions — control your coding sessions from any MCP client.
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Node.js >=18](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](package.json)
+
+An MCP Server that bridges external agents with local Claude Code CLI sessions — control your coding sessions from your phone.
 
 ```
-Phone IM → Agent (MCP Client) → cc-proxy (MCP Server) → Claude CLI → Claude Code Session
+┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
+│ Phone IM │ ──▶ │  Hermes  │ ──▶ │ cc-proxy │ ──▶ │Claude CLI│ ──▶ │ Session  │
+│(WeChat/.)│     │(MCP Client)│     │(MCP Server)│     │(subprocess)│     │ (active) │
+└──────────┘     └──────────┘     └──────────┘     └──────────┘     └──────────┘
 ```
+
+## Quick Start
+
+```bash
+# 1. One-line install
+curl -fsSL https://raw.githubusercontent.com/cm8421/cc-proxy/main/install.sh | bash
+
+# 2. Restart Hermes
+# 3. Use cc_list_projects to discover projects, cc_send_to_session to send commands
+```
+
+Prerequisites: [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) and [Hermes](https://github.com/nicepkg/hermes).
 
 ## Features
 

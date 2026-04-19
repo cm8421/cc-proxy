@@ -34,7 +34,7 @@ export async function* sendMessage(
     "--dangerously-skip-permissions",
   ];
 
-  const proc = spawn(cmd[0], cmd.slice(1), { cwd });
+  const proc = spawn(cmd[0], cmd.slice(1), { cwd, env: process.env });
 
   try {
     yield* parseStream(proc, timeout);
@@ -57,7 +57,7 @@ export async function createNewSession(
   ];
   if (name) cmd.push("--name", name);
 
-  const proc = spawn(cmd[0], cmd.slice(1), { cwd });
+  const proc = spawn(cmd[0], cmd.slice(1), { cwd, env: process.env });
   let resultText = "";
   let resultSessionId = "";
   let buffer = "";

@@ -13,4 +13,6 @@ if [ -t 0 ]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export HOME="${HOME:-$USERPROFILE}"
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.cache/nodejs/npm-global/bin"
 exec npx tsx "$SCRIPT_DIR/src/index.ts" --transport stdio

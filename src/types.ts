@@ -49,6 +49,7 @@ export interface StreamEvent {
   event_type: "assistant_text" | "result" | "error";
   content?: string;
   is_final: boolean;
+  session_id?: string;
 }
 
 export interface Config {

@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { loadConfig } from "./config.js";
@@ -7,109 +8,227 @@ import { extractSummary, getMessageCount, getLastUserMessages } from "./jsonl-re
 import { sendMessage, createNewSession } from "./claude-cli.js";
 
 export function createServer(): McpServer {
+  const cfg = loadConfig();
+
   const server = new McpServer({
     name: "cc-proxy",
-    version: "0.1.0",
+    version: "0.2.0",
   });
 
-  server.tool("list_projects", "List all Claude Code projects on this machine", {}, async () => {
-    const cfg = loadConfig();
-    const projects = listProjects(cfg.claude_home);
-    return { content: [{ type: "text", text: JSON.stringify(projects) }] };
-  });
+  server.registerTool(
+    "cc_list_projects",
+    {
+      title: "List Claude Code Projects",
+      description: `List all Claude Code projects on this machine.
 
-  server.tool(
-    "list_sessions",
-    "List Claude Code sessions, optionally filtered by project path",
-    { project_path: z.string().optional().describe("Optional absolute path to filter by project") },
-    async ({ project_path }) => {
-      const cfg = loadConfig();
-      let sessions = listSessions(cfg.claude_home);
-      if (project_path) sessions = sessions.filter((s) => s.cwd === project_path);
+Scans ~/.claude/projects/ for project directories and reports session counts and active status for each project.
 
-      const results = sessions.map((s) => {
-        const alive = isAlive(s.pid);
-        const summary = alive
-          ? extractSummary(s.session_id, s.cwd, cfg.summary_max_messages, cfg.summary_max_chars, cfg.claude_home)
-          : null;
-        const messageCount = getMessageCount(s.session_id, s.cwd, cfg.claude_home);
-        return {
-          session_id: s.session_id,
-          pid: s.pid,
-          cwd: s.cwd,
-          started_at: s.started_at,
-          is_alive: alive,
-          summary,
-          message_count: messageCount,
-        };
-      });
-
-      return { content: [{ type: "text", text: JSON.stringify(results) }] };
+Returns JSON array of objects:
+{
+  "path": "/Users/you/project",    // Project root path
+  "encoded_name": "-Users-you-project",
+  "session_count": 5,               // Total JSONL session files
+  "has_active_session": true        // At least one running session
+}`,
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () => {
+      const projects = listProjects(cfg.claude_home);
+      return { content: [{ type: "text", text: JSON.stringify(projects) }] };
     },
   );
 
-  server.tool(
-    "send_to_session",
-    "Send a message to a specific Claude Code session and get the response",
+  server.registerTool(
+    "cc_list_sessions",
     {
-      session_id: z.string().describe("The session UUID"),
-      message: z.string().describe("The user message to send"),
+      title: "List Claude Code Sessions",
+      description: `List Claude Code sessions, optionally filtered by project path.
+
+Each session entry includes:
+- session_id: UUID for use with cc_send_to_session
+- pid: Process ID (used to check liveness)
+- cwd: Working directory of the session
+- started_at: Unix timestamp (ms)
+- is_alive: Whether the Claude Code process is still running
+- summary: Brief description of session activity (alive sessions only)
+- message_count: Total messages in session history
+
+Args:
+  project_path (string, optional): Filter sessions by project directory
+  limit (number, optional): Max sessions to return (default: 20, max: 100)
+  offset (number, optional): Skip N sessions for pagination (default: 0)`,
+      inputSchema: {
+        project_path: z.string().optional().describe("Optional absolute path to filter by project"),
+        limit: z.number().int().min(1).max(100).default(20).describe("Max sessions to return"),
+        offset: z.number().int().min(0).default(0).describe("Skip N sessions for pagination"),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
-    async ({ session_id, message }, extra) => {
-      const cfg = loadConfig();
-      const session = getSession(session_id, cfg.claude_home);
-      if (!session) {
-        return {
-          content: [{ type: "text", text: JSON.stringify({ error: `Session ${session_id} not found.` }) }],
-          isError: true,
-        };
-      }
-      if (!isAlive(session.pid)) {
-        return {
-          content: [{ type: "text", text: JSON.stringify({ error: `Session process (PID ${session.pid}) is not running.` }) }],
-          isError: true,
-        };
-      }
+    async ({ project_path, limit, offset }) => {
+      let sessions = listSessions(cfg.claude_home);
+      if (project_path) sessions = sessions.filter((s) => s.cwd === project_path);
 
-      const start = Date.now();
-      let fullResponse = "";
+      const total = sessions.length;
+      const paged = sessions.slice(offset, offset + limit);
 
-      for await (const event of sendMessage(message, session_id, session.cwd, cfg.claude_cli_path, cfg.max_stream_timeout)) {
-        if (event.event_type === "result") {
-          fullResponse = event.content ?? "";
-        } else if (event.event_type === "error") {
-          return {
-            content: [{ type: "text", text: JSON.stringify({ error: event.content }) }],
-            isError: true,
-          };
-        }
-      }
+      const items = paged.map((s) => ({
+        session_id: s.session_id,
+        pid: s.pid,
+        cwd: s.cwd,
+        started_at: s.started_at,
+        is_alive: isAlive(s.pid),
+        summary: isAlive(s.pid)
+          ? extractSummary(s.session_id, s.cwd, cfg.summary_max_messages, cfg.summary_max_chars, cfg.claude_home)
+          : null,
+        message_count: getMessageCount(s.session_id, s.cwd, cfg.claude_home),
+      }));
 
-      const durationMs = Date.now() - start;
       return {
         content: [{
           type: "text",
           text: JSON.stringify({
-            session_id,
-            response: fullResponse,
-            stop_reason: "end_turn",
-            duration_ms: durationMs,
+            total,
+            count: items.length,
+            offset,
+            has_more: total > offset + items.length,
+            next_offset: total > offset + items.length ? offset + items.length : undefined,
+            sessions: items,
           }),
         }],
       };
     },
   );
 
-  server.tool(
-    "create_session",
-    "Create a new Claude Code session for a project",
+  server.registerTool(
+    "cc_send_to_session",
     {
-      project_path: z.string().describe("Absolute path to the project directory"),
-      name: z.string().optional().describe("Optional display name"),
+      title: "Send Message to Session",
+      description: `Send a user message to an existing Claude Code session and wait for the response.
+
+Resumes the session identified by session_id, sends the message, and returns the full response.
+The session process must still be alive (verify with cc_get_session_status).
+
+Args:
+  session_id (string, required): UUID of the target session
+  message (string, required): The user message to send (1-10000 characters)
+
+Returns on success:
+{
+  "session_id": "uuid",
+  "response": "Claude's response text",
+  "stop_reason": "end_turn",
+  "duration_ms": 12345
+}
+
+Returns on error:
+{ "error": "Description of what went wrong and suggested fix" }
+
+Errors:
+  - "Session not found": The session_id does not match any known session
+  - "Process not running": The Claude Code process (PID) has exited
+  - "Not logged in": ANTHROPIC_AUTH_TOKEN env var missing — configure in MCP client env
+  - "CLI timeout": Response took longer than max_stream_timeout seconds`,
+      inputSchema: {
+        session_id: z.string().min(1).describe("The session UUID"),
+        message: z.string().min(1).max(10000).describe("The user message to send (1-10000 characters)"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ session_id, message }) => {
+      const session = getSession(session_id, cfg.claude_home);
+      if (!session) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: `Session ${session_id} not found. Use cc_list_sessions to find valid session IDs.` }) }],
+          isError: true,
+        };
+      }
+      if (!isAlive(session.pid)) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: `Session process (PID ${session.pid}) is not running. The session has ended.` }) }],
+          isError: true,
+        };
+      }
+
+      const start = Date.now();
+      const events = await sendMessage(message, session_id, session.cwd, cfg.claude_cli_path, cfg.max_stream_timeout);
+
+      const errorEvent = events.find((e) => e.event_type === "error");
+      if (errorEvent) {
+        const hint = errorEvent.content?.includes("Not logged in")
+          ? " Configure ANTHROPIC_AUTH_TOKEN and ANTHROPIC_BASE_URL in your MCP client environment."
+          : "";
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: errorEvent.content + hint }) }],
+          isError: true,
+        };
+      }
+
+      const resultEvent = events.find((e) => e.event_type === "result");
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            session_id,
+            response: resultEvent?.content ?? "",
+            stop_reason: "end_turn",
+            duration_ms: Date.now() - start,
+          }),
+        }],
+      };
+    },
+  );
+
+  server.registerTool(
+    "cc_create_session",
+    {
+      title: "Create New Session",
+      description: `Create a new Claude Code session for a project directory.
+
+Starts a Claude Code process in the given project directory and returns the new session info.
+The project directory must exist on disk.
+
+Args:
+  project_path (string, required): Absolute path to the project directory
+  name (string, optional): Display name for the session
+
+Returns:
+{
+  "session_id": "uuid",
+  "pid": 12345,
+  "cwd": "/path/to/project",
+  "started_at": 1713480000000,
+  "is_alive": true
+}
+
+Note: Requires ANTHROPIC_AUTH_TOKEN and ANTHROPIC_BASE_URL to be configured in the MCP client environment.`,
+      inputSchema: {
+        project_path: z.string().min(1).describe("Absolute path to the project directory"),
+        name: z.string().optional().describe("Optional display name for the session"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     async ({ project_path, name }) => {
-      const cfg = loadConfig();
-      const fs = await import("node:fs");
       if (!fs.existsSync(project_path) || !fs.statSync(project_path).isDirectory()) {
         return {
           content: [{ type: "text", text: JSON.stringify({ error: `Directory does not exist: ${project_path}` }) }],
@@ -120,7 +239,7 @@ export function createServer(): McpServer {
       const { sessionId } = await createNewSession(project_path, name, cfg.claude_cli_path);
       if (!sessionId) {
         return {
-          content: [{ type: "text", text: JSON.stringify({ error: "Failed to create session." }) }],
+          content: [{ type: "text", text: JSON.stringify({ error: "Failed to create session. Ensure ANTHROPIC_AUTH_TOKEN is configured in MCP client environment." }) }],
           isError: true,
         };
       }
@@ -131,26 +250,38 @@ export function createServer(): McpServer {
           type: "text",
           text: JSON.stringify(
             session
-              ? {
-                  session_id: session.session_id,
-                  pid: session.pid,
-                  cwd: session.cwd,
-                  started_at: session.started_at,
-                  is_alive: isAlive(session.pid),
-                }
-              : { session_id: sessionId, message: "Session created but not yet visible." },
+              ? { session_id: session.session_id, pid: session.pid, cwd: session.cwd, started_at: session.started_at, is_alive: isAlive(session.pid) }
+              : { session_id: sessionId, message: "Session created. Use cc_get_session_status to verify." },
           ),
         }],
       };
     },
   );
 
-  server.tool(
-    "get_session_status",
-    "Check if a Claude Code session process is still alive",
-    { session_id: z.string().describe("The session UUID") },
+  server.registerTool(
+    "cc_get_session_status",
+    {
+      title: "Get Session Status",
+      description: `Check whether a Claude Code session process is still alive.
+
+Use this before cc_send_to_session to verify the target session is responsive.
+
+Args:
+  session_id (string, required): The session UUID
+
+Returns:
+{ "session_id": "uuid", "is_alive": true/false, "pid": 12345 }`,
+      inputSchema: {
+        session_id: z.string().min(1).describe("The session UUID"),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
     async ({ session_id }) => {
-      const cfg = loadConfig();
       const session = getSession(session_id, cfg.claude_home);
       if (!session) {
         return {
@@ -167,12 +298,36 @@ export function createServer(): McpServer {
     },
   );
 
-  server.tool(
-    "get_session_summary",
-    "Get a summary of what a session has been working on",
-    { session_id: z.string().describe("The session UUID") },
+  server.registerTool(
+    "cc_get_session_summary",
+    {
+      title: "Get Session Summary",
+      description: `Get a summary of what a Claude Code session has been working on.
+
+Extracts recent user messages and a brief summary from the session's JSONL history.
+Useful for understanding session context before sending a new message.
+
+Args:
+  session_id (string, required): The session UUID
+
+Returns:
+{
+  "session_id": "uuid",
+  "cwd": "/path/to/project",
+  "summary": "Brief description of session activity",
+  "last_user_messages": ["msg1", "msg2", "msg3"]
+}`,
+      inputSchema: {
+        session_id: z.string().min(1).describe("The session UUID"),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
     async ({ session_id }) => {
-      const cfg = loadConfig();
       const session = getSession(session_id, cfg.claude_home);
       if (!session) {
         return {

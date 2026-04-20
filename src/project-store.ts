@@ -1,20 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { ProjectInfo } from "./types.js";
-import { decodeProjectDir, encodeProjectPath, getProjectsDir } from "./path-utils.js";
-import { isAlive, listSessions } from "./session-store.js";
+import { encodeProjectPath, getProjectsDir } from "./path-utils.js";
+import { getSession, isAlive, listSessions } from "./session-store.js";
 
 export function listProjects(claudeHome = "~/.claude"): ProjectInfo[] {
   const projectsDir = getProjectsDir(claudeHome);
   if (!fs.existsSync(projectsDir)) return [];
 
   const sessions = listSessions(claudeHome);
-  const dirToCwd = new Map<string, string>();
   const cwdToSessions = new Map<string, typeof sessions>();
 
   for (const s of sessions) {
-    const encoded = encodeProjectPath(s.cwd);
-    dirToCwd.set(encoded, s.cwd);
     const list = cwdToSessions.get(s.cwd) || [];
     list.push(s);
     cwdToSessions.set(s.cwd, list);
@@ -25,20 +22,53 @@ export function listProjects(claudeHome = "~/.claude"): ProjectInfo[] {
     const fullPath = path.join(projectsDir, entry);
     if (!fs.statSync(fullPath).isDirectory()) continue;
 
-    const realPath = dirToCwd.get(entry) ?? decodeProjectDir(entry);
+    // Resolve real path from session metadata (never decode directory name — lossy)
+    const realPath = resolveProjectCwd(entry, fullPath, sessions, claudeHome);
+    if (!realPath) continue;
+
     const jsonlFiles = fs.readdirSync(fullPath).filter((f) => f.endsWith(".jsonl"));
     const projectSessions = cwdToSessions.get(realPath) || [];
-    const hasActive = projectSessions.some((s) => isAlive(s.pid));
 
     projects.push({
       path: realPath,
       encoded_name: entry,
       session_count: jsonlFiles.length,
-      has_active_session: hasActive,
+      has_active_session: projectSessions.some((s) => isAlive(s.pid)),
     });
   }
 
   return projects;
+}
+
+function resolveProjectCwd(
+  encodedName: string,
+  projectDir: string,
+  sessions: { session_id: string; cwd: string }[],
+  claudeHome: string,
+): string | undefined {
+  // Source 1: match encoded name against known session cwds
+  for (const s of sessions) {
+    if (encodeProjectPath(s.cwd) === encodedName) return s.cwd;
+  }
+
+  // Source 2: read any JSONL file and look up its session in the session store
+  const jsonlFiles = fs.readdirSync(projectDir).filter((f) => f.endsWith(".jsonl"));
+  for (const jf of jsonlFiles) {
+    const sid = jf.replace(/\.jsonl$/, "");
+    const session = getSession(sid, claudeHome);
+    if (session?.cwd) return session.cwd;
+  }
+
+  // Source 3: read first line of JSONL file to extract cwd from record
+  for (const jf of jsonlFiles) {
+    try {
+      const firstLine = fs.readFileSync(path.join(projectDir, jf), "utf-8").split("\n")[0];
+      const record = JSON.parse(firstLine);
+      if (record.cwd) return record.cwd as string;
+    } catch { /* skip */ }
+  }
+
+  return undefined;
 }
 
 export function getProjectDir(projectPath: string, claudeHome = "~/.claude"): string | undefined {

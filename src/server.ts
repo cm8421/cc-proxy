@@ -88,9 +88,7 @@ Args:
         cwd: s.cwd,
         started_at: s.started_at,
         is_alive: isAlive(s.pid),
-        summary: isAlive(s.pid)
-          ? extractSummary(s.session_id, s.cwd, cfg.summary_max_messages, cfg.summary_max_chars, cfg.claude_home)
-          : null,
+        summary: extractSummary(s.session_id, s.cwd, cfg.summary_max_messages, cfg.summary_max_chars, cfg.claude_home),
         message_count: getMessageCount(s.session_id, s.cwd, cfg.claude_home),
       }));
 
@@ -117,7 +115,7 @@ Args:
       description: `Send a user message to an existing Claude Code session and wait for the response.
 
 Resumes the session identified by session_id, sends the message, and returns the full response.
-The session process must still be alive (verify with cc_get_session_status).
+Works with both active and inactive sessions — Claude CLI will resume the session via --resume.
 
 Args:
   session_id (string, required): UUID of the target session
@@ -136,7 +134,6 @@ Returns on error:
 
 Errors:
   - "Session not found": The session_id does not match any known session
-  - "Process not running": The Claude Code process (PID) has exited
   - "Not logged in": ANTHROPIC_AUTH_TOKEN env var missing — configure in MCP client env
   - "CLI timeout": Response took longer than max_stream_timeout seconds`,
       inputSchema: {
@@ -155,12 +152,6 @@ Errors:
       if (!session) {
         return {
           content: [{ type: "text", text: JSON.stringify({ error: `Session ${session_id} not found. Use cc_list_sessions to find valid session IDs.` }) }],
-          isError: true,
-        };
-      }
-      if (!isAlive(session.pid)) {
-        return {
-          content: [{ type: "text", text: JSON.stringify({ error: `Session process (PID ${session.pid}) is not running. The session has ended.` }) }],
           isError: true,
         };
       }

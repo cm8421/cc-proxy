@@ -10,10 +10,9 @@ export function extractCwdFromJsonl(jsonlPath: string): string | undefined {
     const bytesRead = fs.readSync(fd, buf, 0, 8192, 0);
 
     const chunk = buf.toString("utf-8", 0, bytesRead);
-    const lines = chunk.split("\n");
-    for (let i = 0; i < Math.min(lines.length, 20); i++) {
+    for (const line of chunk.split("\n").slice(0, 20)) {
       try {
-        const record = JSON.parse(lines[i]);
+        const record = JSON.parse(line);
         if (typeof record.cwd === "string") return record.cwd;
       } catch { continue; }
     }

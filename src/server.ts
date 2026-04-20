@@ -81,15 +81,14 @@ Args:
       if (project_path) sessions = sessions.filter((s) => s.cwd === project_path);
 
       const active = sessions.filter((s) => isAlive(s.pid));
-      const inactive = sessions.filter((s) => !isAlive(s.pid));
-
-      const inactiveByProject = new Map<string, typeof inactive>();
-      for (const s of inactive) {
-        const list = inactiveByProject.get(s.cwd) || [];
-        list.push(s);
-        inactiveByProject.set(s.cwd, list);
-      }
-      const limitedInactive = [...inactiveByProject.values()].flatMap((list) => list.slice(0, 2));
+      const inactivePerProject = new Map<string, number>();
+      const limitedInactive = sessions.filter((s) => {
+        if (isAlive(s.pid)) return false;
+        const count = inactivePerProject.get(s.cwd) ?? 0;
+        if (count >= 2) return false;
+        inactivePerProject.set(s.cwd, count + 1);
+        return true;
+      });
 
       const merged = [...active, ...limitedInactive];
 
@@ -134,6 +133,26 @@ Resumes the session identified by session_id, sends the message, and returns the
 Args:
   session_id (string, required): UUID of the target session
   message (string, required): The user message to send (1-10000 characters)
+  plan_mode (boolean, optional, default: false): Set to true to run Claude in plan-only mode.
+    In plan mode, Claude analyzes code and produces an implementation plan but will NOT edit files or run destructive commands.
+
+    When to use plan_mode=true:
+    - The user wants to review a plan before executing changes
+    - Exploring code, analyzing bugs, or answering questions (no edits needed)
+    - Getting a second opinion on architecture decisions
+    - Any read-only research or investigation task
+
+    When NOT to use plan_mode (leave false or omit):
+    - The user explicitly asks to make changes, fix bugs, or implement features
+    - File edits, code generation, or command execution is expected
+
+  fork_session (boolean, optional, default: false): Set to true to fork into a new session.
+    The original session is not modified, and the response comes from a new session with its own ID.
+
+    When to use fork_session=true:
+    - Trying experimental changes without risking the original session
+    - Multiple parallel tasks branching from the same conversation history
+    - Creating alternative approaches from a shared starting point
 
 Returns on success:
 {
@@ -153,6 +172,8 @@ Errors:
       inputSchema: {
         session_id: z.string().min(1).describe("The session UUID"),
         message: z.string().min(1).max(10000).describe("The user message to send (1-10000 characters)"),
+        plan_mode: z.boolean().optional().default(false).describe("Set to true for plan-only mode (read-only, no edits). Use for analysis, review, and investigation tasks."),
+        fork_session: z.boolean().optional().default(false).describe("Set to true to fork into a new session. Original session remains untouched. Use for experimental changes or parallel tasks."),
       },
       annotations: {
         readOnlyHint: false,
@@ -161,7 +182,7 @@ Errors:
         openWorldHint: true,
       },
     },
-    async ({ session_id, message }) => {
+    async ({ session_id, message, plan_mode, fork_session }) => {
       const session = getSession(session_id, cfg.claude_home);
       if (!session) {
         return {
@@ -171,7 +192,15 @@ Errors:
       }
 
       const start = Date.now();
-      const events = await sendMessage(message, session_id, session.cwd, cfg.claude_cli_path, cfg.max_stream_timeout);
+      const events = await sendMessage({
+        message,
+        sessionId: session_id,
+        cwd: session.cwd,
+        claudeCliPath: cfg.claude_cli_path,
+        timeout: cfg.max_stream_timeout,
+        planMode: plan_mode,
+        forkSession: fork_session,
+      });
 
       const errorEvent = events.find((e) => e.event_type === "error");
       if (errorEvent) {
@@ -241,7 +270,12 @@ Note: Requires ANTHROPIC_AUTH_TOKEN and ANTHROPIC_BASE_URL to be configured in t
         };
       }
 
-      const { sessionId } = await createNewSession(project_path, name, cfg.claude_cli_path, cfg.max_stream_timeout);
+      const { sessionId } = await createNewSession({
+        cwd: project_path,
+        name,
+        claudeCliPath: cfg.claude_cli_path,
+        timeout: cfg.max_stream_timeout,
+      });
       if (!sessionId) {
         return {
           content: [{ type: "text", text: JSON.stringify({ error: "Failed to create session. Ensure ANTHROPIC_AUTH_TOKEN is configured in MCP client environment." }) }],

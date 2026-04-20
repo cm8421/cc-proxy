@@ -44,8 +44,7 @@ function listInactiveSessions(activeIds: Set<string>, claudeHome = "~/.claude"):
 
     const jsonlFiles = fs.readdirSync(projectDir)
       .filter((f) => f.endsWith(".jsonl"))
-      .sort()
-      .reverse();
+      .sort((a, b) => b.localeCompare(a));
 
     for (const jf of jsonlFiles) {
       if (entries.length >= MAX_INACTIVE_SESSIONS) break;
@@ -56,12 +55,7 @@ function listInactiveSessions(activeIds: Set<string>, claudeHome = "~/.claude"):
       const cwd = extractCwdFromJsonl(jsonlPath);
       if (!cwd) continue;
 
-      let startedAt: number;
-      try {
-        startedAt = Math.round(fs.statSync(jsonlPath).mtimeMs);
-      } catch {
-        startedAt = 0;
-      }
+      const startedAt = safeMtimeMs(jsonlPath);
 
       entries.push({
         pid: 0,
@@ -101,5 +95,13 @@ export function isAlive(pid: number): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+function safeMtimeMs(filePath: string): number {
+  try {
+    return Math.round(fs.statSync(filePath).mtimeMs);
+  } catch {
+    return 0;
   }
 }

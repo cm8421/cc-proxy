@@ -25,23 +25,39 @@ function buildSpawnOpts(cwd: string): Parameters<typeof spawn>[2] {
   };
 }
 
-export function sendMessage(
-  message: string,
-  sessionId: string,
-  cwd: string,
+interface SendMessageOptions {
+  message: string;
+  sessionId: string;
+  cwd: string;
+  claudeCliPath?: string;
+  timeout?: number;
+  planMode?: boolean;
+  forkSession?: boolean;
+}
+
+export function sendMessage({
+  message,
+  sessionId,
+  cwd,
   claudeCliPath = "claude",
   timeout = 300,
-): Promise<StreamEvent[]> {
+  planMode = false,
+  forkSession = false,
+}: SendMessageOptions): Promise<StreamEvent[]> {
   const { current: lock, resolve } = getSessionLock(sessionId);
 
   return lock.then(() => {
-    const proc = spawn(claudeCliPath, [
+    const args = [
       "-p", message,
       "--resume", sessionId,
       "--output-format", "stream-json",
       "--verbose",
       "--dangerously-skip-permissions",
-    ], buildSpawnOpts(cwd));
+    ];
+    if (planMode) args.push("--permission-mode", "plan");
+    if (forkSession) args.push("--fork-session");
+
+    const proc = spawn(claudeCliPath, args, buildSpawnOpts(cwd));
 
     return collectStream(proc, timeout).finally(() => {
       resolve();
@@ -50,12 +66,19 @@ export function sendMessage(
   });
 }
 
-export async function createNewSession(
-  cwd: string,
-  name?: string,
+interface CreateSessionOptions {
+  cwd: string;
+  name?: string;
+  claudeCliPath?: string;
+  timeout?: number;
+}
+
+export async function createNewSession({
+  cwd,
+  name,
   claudeCliPath = "claude",
   timeout = 300,
-): Promise<{ sessionId: string; response: string }> {
+}: CreateSessionOptions): Promise<{ sessionId: string; response: string }> {
   const args = [
     "-p", "Session initialized.",
     "--output-format", "stream-json",

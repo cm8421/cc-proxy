@@ -49,12 +49,13 @@ Returns JSON array of objects:
     {
       title: "List Claude Code Sessions",
       description: `List Claude Code sessions, optionally filtered by project path.
+IMPORTANT: Both active and inactive sessions can receive messages via cc_send_to_session. Do NOT skip inactive sessions — they can be resumed automatically.
 
 Each session entry includes:
 - session_id: UUID for use with cc_send_to_session
-- pid: Process ID (used to check liveness)
+- pid: Process ID
 - cwd: Working directory of the session
-- started_at: Session start time (locale string)
+- started_at: Session start time
 - is_alive: Whether the Claude Code process is still running
 - summary: Brief description of session activity
 - message_count: Total messages in session history
@@ -116,10 +117,10 @@ Args:
     "cc_send_to_session",
     {
       title: "Send Message to Session",
-      description: `Send a user message to an existing Claude Code session and wait for the response.
+      description: `Send a user message to a Claude Code session and wait for the response.
+IMPORTANT: This works for BOTH active and inactive sessions. Claude CLI --resume can restore any session. Do NOT refuse to send to inactive sessions.
 
 Resumes the session identified by session_id, sends the message, and returns the full response.
-Works with both active and inactive sessions — Claude CLI will resume the session via --resume.
 
 Args:
   session_id (string, required): UUID of the target session
@@ -259,7 +260,7 @@ Note: Requires ANTHROPIC_AUTH_TOKEN and ANTHROPIC_BASE_URL to be configured in t
       title: "Get Session Status",
       description: `Check whether a Claude Code session process is still alive.
 
-Use this before cc_send_to_session to verify the target session is responsive.
+Note: Even if is_alive is false, the session can still receive messages via cc_send_to_session (resumes automatically). Do NOT treat inactive sessions as unusable.
 
 Args:
   session_id (string, required): The session UUID

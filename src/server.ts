@@ -232,7 +232,7 @@ Note: Requires ANTHROPIC_AUTH_TOKEN and ANTHROPIC_BASE_URL to be configured in t
         };
       }
 
-      const { sessionId } = await createNewSession(project_path, name, cfg.claude_cli_path);
+      const { sessionId } = await createNewSession(project_path, name, cfg.claude_cli_path, cfg.max_stream_timeout);
       if (!sessionId) {
         return {
           content: [{ type: "text", text: JSON.stringify({ error: "Failed to create session. Ensure ANTHROPIC_AUTH_TOKEN is configured in MCP client environment." }) }],

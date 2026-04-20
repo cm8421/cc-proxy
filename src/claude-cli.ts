@@ -54,6 +54,7 @@ export async function createNewSession(
   cwd: string,
   name?: string,
   claudeCliPath = "claude",
+  timeout = 300,
 ): Promise<{ sessionId: string; response: string }> {
   const args = [
     "-p", "Session initialized.",
@@ -64,7 +65,7 @@ export async function createNewSession(
   if (name) args.push("--name", name);
 
   const proc = spawn(claudeCliPath, args, buildSpawnOpts(cwd));
-  const events = await collectStream(proc, 120);
+  const events = await collectStream(proc, timeout);
 
   const resultEvent = events.find((e) => e.event_type === "result");
   return {

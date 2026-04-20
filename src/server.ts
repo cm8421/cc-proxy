@@ -54,9 +54,9 @@ Each session entry includes:
 - session_id: UUID for use with cc_send_to_session
 - pid: Process ID (used to check liveness)
 - cwd: Working directory of the session
-- started_at: Unix timestamp (ms)
+- started_at: Session start time (locale string)
 - is_alive: Whether the Claude Code process is still running
-- summary: Brief description of session activity (alive sessions only)
+- summary: Brief description of session activity
 - message_count: Total messages in session history
 
 Args:

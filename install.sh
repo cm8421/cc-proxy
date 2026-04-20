@@ -5,6 +5,32 @@ INSTALL_DIR="$HOME/.cc-proxy"
 HERMES_CONFIG="$HOME/.hermes/config.yaml"
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# ── Prerequisite checks ──
+for cmd in node npm git; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "Error: '$cmd' is required but not found in PATH." >&2
+        echo "Please install $cmd first: https://nodejs.org/" >&2
+        exit 1
+    fi
+done
+
+NODE_VERSION=$(node -v 2>/dev/null)
+echo "==> Prerequisites: node ${NODE_VERSION}, npm $(npm -v 2>/dev/null), git $(git --version 2>/dev/null | cut -d' ' -f3)"
+
+# ── Source user's shell profile for nvm/fnm/volta paths ──
+# When run via `curl | bash`, shell profiles are NOT loaded automatically.
+_profile_sourced=false
+for _rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+    if [ -f "$_rc" ]; then
+        # Extract only PATH-modifying lines to avoid interactive side effects
+        eval "$(grep -E '^(export )?PATH=|nvm|fnm|volta|\. ([^/]*/)*(nvm|fnm|volta)' "$_rc" 2>/dev/null || true)"
+        _profile_sourced=true
+    fi
+done
+if [ "$_profile_sourced" = false ]; then
+    echo "    Warning: No shell profile found. PATH may be incomplete."
+fi
+
 # Clone if not already in repo
 if [ ! -f "$REPO_DIR/src/index.ts" ]; then
     echo "==> Cloning cc-proxy..."
@@ -28,7 +54,7 @@ elif [ -d "$REPO_DIR/.git" ]; then
 fi
 
 echo "==> Installing dependencies..."
-cd "$REPO_DIR" && rm -rf node_modules && npm install --production
+cd "$REPO_DIR" && rm -rf node_modules && npm install --production && chmod +x run.sh
 
 # Save current PATH for run.sh (so MCP client can find node/npx/claude)
 echo "$PATH" > "$REPO_DIR/.path"
@@ -108,17 +134,16 @@ else
     if grep -q "cc-proxy" "$HERMES_CONFIG"; then
         echo "    already configured, skipping."
     else
-        node -e "
+        cd "$REPO_DIR" && node -e "
 const fs = require('fs');
-const path = '$HERMES_CONFIG';
 const yaml = require('yaml');
-const cfg = yaml.parse(fs.readFileSync(path, 'utf-8'));
+const cfg = yaml.parse(fs.readFileSync('$HERMES_CONFIG', 'utf-8'));
 if (!cfg.mcp_servers) cfg.mcp_servers = {};
 cfg.mcp_servers['cc-proxy'] = {
     command: '$REPO_DIR/run.sh',
     args: ['--transport', 'stdio']
 };
-fs.writeFileSync(path, yaml.stringify(cfg));
+fs.writeFileSync('$HERMES_CONFIG', yaml.stringify(cfg));
 "
         echo "    added to Hermes config."
     fi

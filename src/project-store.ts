@@ -3,6 +3,7 @@ import path from "node:path";
 import type { ProjectInfo } from "./types.js";
 import { encodeProjectPath, getProjectsDir } from "./path-utils.js";
 import { getSession, isAlive, listSessions } from "./session-store.js";
+import { extractCwdFromJsonl } from "./jsonl-reader.js";
 
 export function listProjects(claudeHome = "~/.claude"): ProjectInfo[] {
   const projectsDir = getProjectsDir(claudeHome);
@@ -23,7 +24,7 @@ export function listProjects(claudeHome = "~/.claude"): ProjectInfo[] {
     if (!fs.statSync(fullPath).isDirectory()) continue;
 
     // Resolve real path from session metadata (never decode directory name — lossy)
-    const realPath = resolveProjectCwd(entry, fullPath, sessions, claudeHome);
+    const realPath = resolveProjectCwd(entry, fullPath, sessions);
     if (!realPath) continue;
 
     const jsonlFiles = fs.readdirSync(fullPath).filter((f) => f.endsWith(".jsonl"));
@@ -44,26 +45,18 @@ function resolveProjectCwd(
   encodedName: string,
   projectDir: string,
   sessions: { session_id: string; cwd: string }[],
-  claudeHome: string,
 ): string | undefined {
   // Source 1: match encoded name against known session cwds
   for (const s of sessions) {
     if (encodeProjectPath(s.cwd) === encodedName) return s.cwd;
   }
 
-  // Source 2: read any JSONL file, extract sessionId, look up in session store
+  // Source 2: extract cwd from JSONL content (no lossy decode)
   const jsonlFiles = fs.readdirSync(projectDir).filter((f) => f.endsWith(".jsonl"));
   for (const jf of jsonlFiles) {
-    const sid = jf.replace(/\.jsonl$/, "");
-    const session = getSession(sid, claudeHome);
-    if (session?.cwd) return session.cwd;
+    const cwd = extractCwdFromJsonl(path.join(projectDir, jf));
+    if (cwd) return cwd;
   }
-
-  // Source 3: heuristic decode + filesystem verification
-  const candidate = encodedName.replace(/^-/, "/").replace(/-/g, "/");
-  try {
-    if (fs.statSync(candidate).isDirectory()) return candidate;
-  } catch { /* not found */ }
 
   return undefined;
 }

@@ -81,8 +81,17 @@ Args:
       if (project_path) sessions = sessions.filter((s) => s.cwd === project_path);
 
       const active = sessions.filter((s) => isAlive(s.pid));
-      const inactive = sessions.filter((s) => !isAlive(s.pid)).slice(0, 2);
-      const merged = [...active, ...inactive];
+      const inactive = sessions.filter((s) => !isAlive(s.pid));
+
+      const inactiveByProject = new Map<string, typeof inactive>();
+      for (const s of inactive) {
+        const list = inactiveByProject.get(s.cwd) || [];
+        list.push(s);
+        inactiveByProject.set(s.cwd, list);
+      }
+      const limitedInactive = [...inactiveByProject.values()].flatMap((list) => list.slice(0, 2));
+
+      const merged = [...active, ...limitedInactive];
 
       const total = merged.length;
       const paged = merged.slice(offset, offset + limit);

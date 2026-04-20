@@ -2,6 +2,28 @@ import fs from "node:fs";
 import path from "node:path";
 import { encodeProjectPath, getProjectsDir } from "./path-utils.js";
 
+export function extractCwdFromJsonl(jsonlPath: string): string | undefined {
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(jsonlPath, "r");
+    const buf = Buffer.alloc(8192);
+    const bytesRead = fs.readSync(fd, buf, 0, 8192, 0);
+
+    const chunk = buf.toString("utf-8", 0, bytesRead);
+    const lines = chunk.split("\n");
+    for (let i = 0; i < Math.min(lines.length, 20); i++) {
+      try {
+        const record = JSON.parse(lines[i]);
+        if (typeof record.cwd === "string") return record.cwd;
+      } catch { continue; }
+    }
+  } catch { /* ignore */ }
+  finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+  return undefined;
+}
+
 function sessionJsonlPath(sessionId: string, cwd: string, claudeHome = "~/.claude"): string | undefined {
   const encoded = encodeProjectPath(cwd);
   const file = path.join(getProjectsDir(claudeHome), encoded, `${sessionId}.jsonl`);

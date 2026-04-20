@@ -51,7 +51,7 @@ function resolveProjectCwd(
     if (encodeProjectPath(s.cwd) === encodedName) return s.cwd;
   }
 
-  // Source 2: read any JSONL file and look up its session in the session store
+  // Source 2: read any JSONL file, extract sessionId, look up in session store
   const jsonlFiles = fs.readdirSync(projectDir).filter((f) => f.endsWith(".jsonl"));
   for (const jf of jsonlFiles) {
     const sid = jf.replace(/\.jsonl$/, "");
@@ -59,14 +59,11 @@ function resolveProjectCwd(
     if (session?.cwd) return session.cwd;
   }
 
-  // Source 3: read first line of JSONL file to extract cwd from record
-  for (const jf of jsonlFiles) {
-    try {
-      const firstLine = fs.readFileSync(path.join(projectDir, jf), "utf-8").split("\n")[0];
-      const record = JSON.parse(firstLine);
-      if (record.cwd) return record.cwd as string;
-    } catch { /* skip */ }
-  }
+  // Source 3: heuristic decode + filesystem verification
+  const candidate = encodedName.replace(/^-/, "/").replace(/-/g, "/");
+  try {
+    if (fs.statSync(candidate).isDirectory()) return candidate;
+  } catch { /* not found */ }
 
   return undefined;
 }

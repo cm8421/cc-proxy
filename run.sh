@@ -32,4 +32,4 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
     done < "$SCRIPT_DIR/.env"
 fi
 
-exec npx tsx "$SCRIPT_DIR/src/index.ts" --transport stdio
+exec "$SCRIPT_DIR/node_modules/.bin/tsx" "$SCRIPT_DIR/src/index.ts" --transport stdio

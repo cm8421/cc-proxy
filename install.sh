@@ -28,7 +28,7 @@ elif [ -d "$REPO_DIR/.git" ]; then
 fi
 
 echo "==> Installing dependencies..."
-cd "$REPO_DIR" && npm install --production
+cd "$REPO_DIR" && rm -rf node_modules && npm install --production
 
 # Save current PATH for run.sh (so MCP client can find node/npx/claude)
 echo "$PATH" > "$REPO_DIR/.path"

@@ -27,17 +27,27 @@ curl -fsSL https://raw.githubusercontent.com/cm8421/cc-proxy/main/install.sh | b
 ## 功能
 
 - 发现本机所有 Claude Code 项目和会话
-- 向指定会话发送消息并获取响应
+- 向指定会话发送消息并获取响应（支持活跃和不活跃会话）
 - 创建新的 Claude Code 会话
-- 查询会话状态和摘要
+- 查询会话状态和摘要（带时间戳）
+
+## 升级
+
+重新运行安装命令即可升级，自动保留本地配置：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cm8421/cc-proxy/main/install.sh | bash
+```
+
+升级后重启 Hermes 生效。
 
 ## MCP 工具
 
 | 工具 | 说明 | 只读 |
 |------|------|------|
 | `cc_list_projects` | 列出本机所有 Claude Code 项目 | Yes |
-| `cc_list_sessions` | 列出会话，支持按项目过滤和分页 | Yes |
-| `cc_send_to_session` | 向指定会话发送消息并获取响应 | No |
+| `cc_list_sessions` | 列出会话（活跃全部 + 最新 2 个不活跃），支持按项目过滤和分页 | Yes |
+| `cc_send_to_session` | 向指定会话发送消息并获取响应（支持恢复不活跃会话） | No |
 | `cc_create_session` | 为指定项目创建新会话 | No |
 | `cc_get_session_status` | 检查会话进程是否存活 | Yes |
 | `cc_get_session_summary` | 获取会话工作摘要和最近消息 | Yes |
@@ -76,6 +86,20 @@ ANTHROPIC_AUTH_TOKEN=your-token
 EOF
 ```
 
+支持多 provider 配置，后面的同名变量覆盖前面的：
+
+```bash
+# Provider A
+ANTHROPIC_BASE_URL=https://provider-a.com
+ANTHROPIC_AUTH_TOKEN=token-a
+
+# Provider B（当前生效）
+ANTHROPIC_BASE_URL=https://provider-b.com
+ANTHROPIC_AUTH_TOKEN=token-b
+```
+
+切换时把目标 provider 的配置移到最后即可。
+
 ### Hermes 配置传递
 
 也可以在 Hermes 的 MCP 配置中通过 `env` 字段传递（此时不需要 `.env`）：
@@ -104,6 +128,13 @@ mcp_servers:
 ### 故障排查
 
 **"Not logged in" 错误**：`.env` 文件缺失或凭证无效。运行 `cat ~/.cc-proxy/.env` 检查内容。
+
+**`spawn claude ENOENT` 错误**：claude CLI 不在 PATH 中。安装脚本会自动检测并写入 `config.yaml` 的 `cli_path`。如仍有问题，手动编辑 `~/.cc-proxy/config.yaml` 设置完整路径：
+
+```yaml
+claude:
+  cli_path: "/full/path/to/claude"
+```
 
 ## 项目结构
 

@@ -11,6 +11,20 @@ if [ ! -f "$REPO_DIR/src/index.ts" ]; then
     rm -rf "$INSTALL_DIR"
     git clone https://github.com/cm8421/cc-proxy.git "$INSTALL_DIR"
     REPO_DIR="$INSTALL_DIR"
+elif [ -d "$REPO_DIR/.git" ]; then
+    echo "==> Upgrading cc-proxy..."
+    # Stash local config changes, pull, then restore
+    cd "$REPO_DIR"
+    OLD_VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
+    git stash -q 2>/dev/null || true
+    git pull -q origin main 2>/dev/null || true
+    git stash pop -q 2>/dev/null || true
+    NEW_VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
+    if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+        echo "    Already up to date ($NEW_VERSION)"
+    else
+        echo "    Updated: $OLD_VERSION -> $NEW_VERSION"
+    fi
 fi
 
 echo "==> Installing dependencies..."
@@ -64,6 +78,8 @@ ENV_FILE="$REPO_DIR/.env"
 CAPTURED=""
 if env | grep -q "^ANTHROPIC_"; then
     echo "==> Detecting Claude Code credentials..."
+    # Rewrite .env from scratch to avoid duplicates on upgrade
+    > "$ENV_FILE"
     for var in $(env | grep "^ANTHROPIC_" | cut -d= -f1); do
         eval val=\$$var
         echo "$var=$val" >> "$ENV_FILE"

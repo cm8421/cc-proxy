@@ -39,12 +39,24 @@ if [ ! -f "$REPO_DIR/src/index.ts" ]; then
     REPO_DIR="$INSTALL_DIR"
 elif [ -d "$REPO_DIR/.git" ]; then
     echo "==> Upgrading cc-proxy..."
-    # Stash local config changes, pull, then restore
     cd "$REPO_DIR"
     OLD_VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
-    git stash -q 2>/dev/null || true
+
+    # Backup user configs, clean pull, then restore (avoids merge conflicts)
+    _TMPDIR=$(mktemp -d)
+    for _f in config.yaml .env .path; do
+        [ -f "$_f" ] && cp "$_f" "$_TMPDIR/"
+    done
+
+    git checkout -- . 2>/dev/null || true
     git pull -q origin main 2>/dev/null || true
-    git stash pop -q 2>/dev/null || true
+
+    # Restore user configs (prefer local over repo defaults)
+    for _f in config.yaml .env .path; do
+        [ -f "$_TMPDIR/$_f" ] && cp "$_TMPDIR/$_f" ./
+    done
+    rm -rf "$_TMPDIR"
+
     NEW_VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
     if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
         echo "    Already up to date ($NEW_VERSION)"

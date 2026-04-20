@@ -79,8 +79,12 @@ Args:
       let sessions = listSessions(cfg.claude_home);
       if (project_path) sessions = sessions.filter((s) => s.cwd === project_path);
 
-      const total = sessions.length;
-      const paged = sessions.slice(offset, offset + limit);
+      const active = sessions.filter((s) => isAlive(s.pid));
+      const inactive = sessions.filter((s) => !isAlive(s.pid)).slice(0, 2);
+      const merged = [...active, ...inactive];
+
+      const total = merged.length;
+      const paged = merged.slice(offset, offset + limit);
 
       const items = paged.map((s) => ({
         session_id: s.session_id,

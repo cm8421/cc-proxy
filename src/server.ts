@@ -91,6 +91,7 @@ Args:
         pid: s.pid,
         cwd: s.cwd,
         started_at: s.started_at,
+        started_at_iso: new Date(s.started_at).toISOString(),
         is_alive: isAlive(s.pid),
         summary: extractSummary(s.session_id, s.cwd, cfg.summary_max_messages, cfg.summary_max_chars, cfg.claude_home),
         message_count: getMessageCount(s.session_id, s.cwd, cfg.claude_home),

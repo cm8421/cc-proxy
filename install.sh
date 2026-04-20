@@ -42,27 +42,23 @@ elif [ -d "$REPO_DIR/.git" ]; then
     cd "$REPO_DIR"
     OLD_VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
 
-    # Backup user configs, clean pull, then restore (avoids merge conflicts)
+    # Backup user configs, fresh clone, then restore — avoids all git merge issues
     _TMPDIR=$(mktemp -d)
     for _f in config.yaml .env .path; do
         [ -f "$_f" ] && cp "$_f" "$_TMPDIR/"
     done
+    cd /tmp
+    rm -rf "$REPO_DIR"
+    git clone -q https://github.com/cm8421/cc-proxy.git "$INSTALL_DIR"
+    REPO_DIR="$INSTALL_DIR"
 
-    git checkout -- . 2>/dev/null || true
-    git pull -q origin main 2>/dev/null || true
-
-    # Restore user configs (prefer local over repo defaults)
     for _f in config.yaml .env .path; do
-        [ -f "$_TMPDIR/$_f" ] && cp "$_TMPDIR/$_f" ./
+        [ -f "$_TMPDIR/$_f" ] && cp "$_TMPDIR/$_f" "$REPO_DIR/"
     done
     rm -rf "$_TMPDIR"
 
-    NEW_VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
-    if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
-        echo "    Already up to date ($NEW_VERSION)"
-    else
-        echo "    Updated: $OLD_VERSION -> $NEW_VERSION"
-    fi
+    NEW_VERSION=$(cd "$REPO_DIR" && git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
+    echo "    Updated: $OLD_VERSION -> $NEW_VERSION"
 fi
 
 echo "==> Installing dependencies..."

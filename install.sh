@@ -16,6 +16,49 @@ fi
 echo "==> Installing dependencies..."
 cd "$REPO_DIR" && npm install --production
 
+# Save current PATH for run.sh (so MCP client can find node/npx/claude)
+echo "$PATH" > "$REPO_DIR/.path"
+
+# Detect Claude CLI full path
+echo "==> Detecting Claude CLI..."
+CLAUDE_PATH=$(command -v claude 2>/dev/null || true)
+if [ -n "$CLAUDE_PATH" ]; then
+    echo "    Found: $CLAUDE_PATH"
+
+    CONFIG_FILE="$REPO_DIR/config.yaml"
+    if [ -f "$CONFIG_FILE" ]; then
+        # Update existing config: replace cli_path or claude_cli_path
+        if grep -q "cli_path:" "$CONFIG_FILE"; then
+            sed -i.bak "s|cli_path:.*|cli_path: \"$CLAUDE_PATH\"|" "$CONFIG_FILE"
+        elif grep -q "claude_cli_path:" "$CONFIG_FILE"; then
+            sed -i.bak "s|claude_cli_path:.*|cli_path: \"$CLAUDE_PATH\"|" "$CONFIG_FILE"
+        fi
+        rm -f "$CONFIG_FILE.bak"
+    else
+        cat > "$CONFIG_FILE" << 'YAML'
+server:
+  host: "127.0.0.1"
+  port: 8765
+
+claude:
+  cli_path: "PLACEHOLDER"
+  home: "~/.claude"
+
+session:
+  max_stream_timeout: 1800
+  summary_max_messages: 5
+  summary_max_chars: 200
+YAML
+        sed -i.bak "s|PLACEHOLDER|$CLAUDE_PATH|" "$CONFIG_FILE"
+        rm -f "$CONFIG_FILE.bak"
+    fi
+    echo "    Saved to $CONFIG_FILE"
+else
+    echo "    Warning: 'claude' not found in PATH."
+    echo "    Default 'claude' will be used. If you get ENOENT errors,"
+    echo "    edit $REPO_DIR/config.yaml and set claude_cli_path to the full path."
+fi
+
 # Auto-capture ANTHROPIC_* env vars from current shell into .env
 ENV_FILE="$REPO_DIR/.env"
 CAPTURED=""

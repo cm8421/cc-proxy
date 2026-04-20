@@ -13,7 +13,14 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 export HOME="${HOME:-$USERPROFILE}"
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.cache/nodejs/npm-global/bin"
+
+# Load saved PATH from install (fast), or resolve from login shell (reliable)
+if [ -f "$SCRIPT_DIR/.path" ]; then
+    export PATH="$(cat "$SCRIPT_DIR/.path")"
+else
+    _RESOLVED=$(${SHELL:-/bin/bash} -l -c 'echo "$PATH"' 2>/dev/null || true)
+    [ -n "$_RESOLVED" ] && export PATH="$_RESOLVED"
+fi
 
 # Load .env file (created by install.sh from your shell's ANTHROPIC_* vars)
 if [ -f "$SCRIPT_DIR/.env" ]; then
